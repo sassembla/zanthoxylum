@@ -50,18 +50,20 @@ export async function activate(context: vscode.ExtensionContext) {
 export function readAST(doc : vscode.TextDocument) : Position[] {
 	// TODO: この関数は全くASTなんて読んでない。適当にfunc で始まる行を取り出してる。実際これで割と上手くいきそう。
 
-	// 適当な字句解析
+	
 	const funcStartPositions : Position[] = [];
+
+	// 適当な字句解析
 	const documentText = doc.getText();
 	const lines = documentText.split("\n");
 	
 
 	// ここでfuncStartPositionsにセットするデータは、エディタ上より1行ずれる、14ってやると15行目になる。
 	lines.forEach((line, index) => {
-		if (line.startsWith("func ")) {
+		if (line.startsWith("func ")) {// func始まり
 			
 			const endIndex = line.indexOf("(");
-			if (-1 < endIndex) {
+			if (-1 < endIndex) {// 括弧始まりが同じ行に含まれている
 				// console.log("func line:", index, line.substring("func ".length, endIndex));
 				funcStartPositions.push(new Position(index, 5));
 			}
