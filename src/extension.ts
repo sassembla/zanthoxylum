@@ -12,22 +12,24 @@ const refProvider = new ReferenceLensProvider();
 export async function activate(context: vscode.ExtensionContext) {
 	// このブロックはこの機能の初回起動時に一度だけ発行される。 onLanguageがpackage.jsonについてると勝手に呼ばれそう。-> 呼ばれた、よし。
 	
-	// find referenceの機能を使うため、vscode goの待ちを行う必要がある。適当に待ってるが、もっとちゃんと待ったほうがいい。
+	// find referenceの機能を使うため、vscode goの待ちを行う必要がある。
+	// TODO: 現在は本気で適当に待ってるが、もっとちゃんと待ったほうがいい。んでどうやって待てるもんなのこれ。
 	console.log("wait start.");
-	await new Promise(resolve => setTimeout(resolve, 3000));
+	await new Promise(resolve => setTimeout(resolve, 1000));
 	console.log("wait done.");
 
 	// このへんでcode lenseの初期化をし、後々条件を満たしたところに足していく、ということをする。
-	let path = vscode.window.activeTextEditor?.document.uri.path;
-	if (path) {
-		let uri = Uri.file(path);
-
+	
+	// 適当に今開いてるgoファイルを対象に動作を行う。
+	// TODO: 変更する。
+	const uri = vscode.window.activeTextEditor?.document.uri;
+	if (uri) {
 		// goファイルが保存されたら + goファイルを新たに開いたら実行して、ASTからのレスポンスを得、code lenseを付け直す。
 		// TODO: 適切なイベントハンドラのセット
 		// TODO: 開発用の決め打ちの破棄
 
-		let currentFileUri = uri;
-		let funcStartPositions: Position[] = [
+		const currentFileUri = uri;
+		const funcStartPositions: Position[] = [
 			// ここで指定するのは1行ずれる、14ってやると15行目になる。
 			new Position(17, 5)	// 開発用決め打ち
 		];
@@ -51,14 +53,14 @@ export async function activate(context: vscode.ExtensionContext) {
 export function updateReferenceCodeLenseIfNeed(currentFileUri:Uri, funcStartPositions: Position[]) {
 	
 	if (0 < funcStartPositions.length) {
-		let refLenseDataArray = new Array<[Uri, Position, Number]>();
+		const refLenseDataArray = new Array<[Uri, Position, Number]>();
 
 		// 発見したfunctionの数だけ、reference取得を実行し、code lenseを更新する。code lenseはこのイベントの終了を待てばいいのか。
 		funcStartPositions.forEach(async startPos => {
 				// reference countを出す場所を割り出し、code lenseの位置に表示を出す。
 				// TODO: ここにサラッと書いてあるcurrentFileUriは、今は最初に開いたファイルのものなので、on何ちゃらのハンドラで開いたファイルのものにすげ替えないといけない。
 				// TODO: このawaitがめちゃくちゃ遅いので、必要なものだけを呼び出すと良いが、ASTのキャッシュとの比較なんてことをしないといけないので後回し。
-				let locations = await commands.executeCommand('vscode.executeReferenceProvider', currentFileUri, startPos);
+				const locations = await commands.executeCommand('vscode.executeReferenceProvider', currentFileUri, startPos);
 				const l = locations as Array<Location>;
 				if (0 < l.length) {
 					var refCount = 0;
@@ -79,7 +81,7 @@ export function updateReferenceCodeLenseIfNeed(currentFileUri:Uri, funcStartPosi
 			}
 		);
 
-		// レンズのリロードを行う。変更点があったところだけ、、とかが無理。
+		// レンズのリロードを行う。変更点があったところだけ、、とかが無理なので、全体をリロードする。複数のファイルを開いてる場合も何とかなるのか？
 		refProvider.update(refLenseDataArray);
 	}
 }
