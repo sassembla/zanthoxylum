@@ -72,7 +72,9 @@ export class ReferenceLensProvider implements vscode.CodeLensProvider {
                 lenses.push(
                     new CodeLens(new Range(new Position(data[1].line, 0), new Position(data[1].line, 0)), {
                         title: data[2] + ' References',
-                        command: 'this.openReferences',// TODO: この関数呼び出しがよくわかってない、これではダメらしい。
+                        command: 'references-view.findReferences',// super + shift + pからreference~って打って、
+                        // VSCodeが提供するfind all ref~について右側の歯車マークを押し、出てくるKeyboard Shortcutsというファイルの上の方に、
+                        // @command:@command:references-view.findReferences って書いてあって、もしやと思って採用したらきちんと反応し、レンズを押すとrefsが左画面に出るようになった。
                         arguments: [data[0], data[1]]
                     })
                 );
@@ -83,11 +85,6 @@ export class ReferenceLensProvider implements vscode.CodeLensProvider {
 
 		return await mainPromise();
 	}
-
-    private async openReferences(uri:Uri, startPos:Position) {
-        let result = await commands.executeCommand('vscode.executeReferenceProvider', uri, startPos);
-        console.log("result:", result);
-    }
 
     // 使わないが参考にする、ドキュメントから対象を探すやつ。
 	// private async function!(

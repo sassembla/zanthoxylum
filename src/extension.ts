@@ -22,17 +22,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	
 	// 適当に今開いてるgoファイルを対象に動作を行う。
 	// TODO: 変更する。
-	const uri = vscode.window.activeTextEditor?.document.uri;
-	if (uri) {
+	const doc = vscode.window.activeTextEditor?.document;
+	if (doc) {
+		const uri = doc.uri;
 		// goファイルが保存されたら + goファイルを新たに開いたら実行して、ASTからのレスポンスを得、code lenseを付け直す。
 		// TODO: 適切なイベントハンドラのセット
 		// TODO: 開発用の決め打ちの破棄
 
 		const currentFileUri = uri;
-		const funcStartPositions: Position[] = [
-			// ここで指定するのは1行ずれる、14ってやると15行目になる。
-			new Position(17, 5)	// 開発用決め打ち
-		];
+		const funcStartPositions = readAST(doc);
 
 		updateReferenceCodeLenseIfNeed(currentFileUri, funcStartPositions);
 		
@@ -47,6 +45,30 @@ export async function activate(context: vscode.ExtensionContext) {
 
 		// context.subscriptions.push(disposable);
 	}
+}
+
+export function readAST(doc : vscode.TextDocument) : Position[] {
+	// TODO: この関数は全くASTなんて読んでない。適当にfunc で始まる行を取り出してる。実際これで割と上手くいきそう。
+
+	// 適当な字句解析
+	const funcStartPositions : Position[] = [];
+	const documentText = doc.getText();
+	const lines = documentText.split("\n");
+	
+
+	// ここでfuncStartPositionsにセットするデータは、エディタ上より1行ずれる、14ってやると15行目になる。
+	lines.forEach((line, index) => {
+		if (line.startsWith("func ")) {
+			
+			const endIndex = line.indexOf("(");
+			if (-1 < endIndex) {
+				// console.log("func line:", index, line.substring("func ".length, endIndex));
+				funcStartPositions.push(new Position(index, 5));
+			}
+		}
+	});
+
+	return funcStartPositions;
 }
 
 // 件数が0件以上であればcode lenseを更新する。
