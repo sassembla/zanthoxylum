@@ -1,26 +1,85 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
+import path = require('path');
 import * as vscode from 'vscode';
+import { CodeLens, commands, languages, Location, Position, Range, Uri, window } from 'vscode';
+import {ReferenceLensProvider} from './referenceLenseProvider';
+
+const refProvider = new ReferenceLensProvider();
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
+	// このブロックはこの機能の初回起動時に一度だけ発行される。 onLanguageがpackage.jsonについてると勝手に呼ばれそう。-> 呼ばれた、よし。
+	
+	// find referenceの機能を使うため、vscode goの待ちを行う必要がある。適当に待ってるが、もっとちゃんと待ったほうがいい。
+	console.log("wait start.");
+	await new Promise(resolve => setTimeout(resolve, 3000));
+	console.log("wait done.");
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "zanthoxylum" is now active!');
+	// このへんでcode lenseの初期化をし、後々条件を満たしたところに足していく、ということをする。
+	let path = vscode.window.activeTextEditor?.document.uri.path;
+	if (path) {
+		let uri = Uri.file(path);
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('zanthoxylum.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from zanthoxylum!');
-	});
+		// goファイルが保存されたら + goファイルを新たに開いたら実行して、ASTからのレスポンスを得、code lenseを付け直す。
+		// TODO: 適切なイベントハンドラのセット
+		// TODO: 開発用の決め打ちの破棄
 
-	context.subscriptions.push(disposable);
+		let currentFileUri = uri;
+		let funcStartPositions: Position[] = [
+			// ここで指定するのは1行ずれる、14ってやると15行目になる。
+			new Position(17, 5)	// 開発用決め打ち
+		];
+
+		updateReferenceCodeLenseIfNeed(currentFileUri, funcStartPositions);
+		
+		// 以下はメモ
+		// // The commandId parameter must match the command field in package.json
+		// let disposable = vscode.commands.registerCommand('zanthoxylum.helloWorld', () => {
+		// 	// なんか右下に表示
+		// 	vscode.window.showInformationMessage('右下に表示');
+			
+		// 	console.log('実行済み');
+		// });
+
+		// context.subscriptions.push(disposable);
+	}
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {}
+// 件数が0件以上であればcode lenseを更新する。
+export function updateReferenceCodeLenseIfNeed(currentFileUri:Uri, funcStartPositions: Position[]) {
+	
+	if (0 < funcStartPositions.length) {
+		let refLenseDataArray = new Array<[Uri, Position, Number]>();
+
+		// 発見したfunctionの数だけ、reference取得を実行し、code lenseを更新する。code lenseはこのイベントの終了を待てばいいのか。
+		funcStartPositions.forEach(async startPos => {
+				// reference countを出す場所を割り出し、code lenseの位置に表示を出す。
+				// TODO: ここにサラッと書いてあるcurrentFileUriは、今は最初に開いたファイルのものなので、on何ちゃらのハンドラで開いたファイルのものにすげ替えないといけない。
+				// TODO: このawaitがめちゃくちゃ遅いので、必要なものだけを呼び出すと良いが、ASTのキャッシュとの比較なんてことをしないといけないので後回し。
+				let locations = await commands.executeCommand('vscode.executeReferenceProvider', currentFileUri, startPos);
+				const l = locations as Array<Location>;
+				if (0 < l.length) {
+					var refCount = 0;
+
+					// 参照数を集計
+					l.forEach(element => {
+						// ASTから出したシンボルの位置と食い違うもののみを集計する。
+						if (element.range.start.line === startPos.line && element.range.start.character === startPos.character) {
+							return;
+						}
+						
+						refCount++;
+					});
+
+					// 参照数を保持する。
+					refLenseDataArray.push([currentFileUri, startPos, refCount]);
+				}
+			}
+		);
+
+		// レンズのリロードを行う。変更点があったところだけ、、とかが無理。
+		refProvider.update(refLenseDataArray);
+	}
+}

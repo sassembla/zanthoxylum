@@ -10,7 +10,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:zanthoxylum.helloWorld"
+    "onLanguage:go"
   ],
   "main": "./dist/extension.js",
   "contributes": {
