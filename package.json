@@ -16,8 +16,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "zanthoxylum.helloWorld",
-        "title": "Hello World"
+        "command": "zanthoxylum.reload",
+        "title": "zanthoxylum:Reload References"
       }
     ]
   },

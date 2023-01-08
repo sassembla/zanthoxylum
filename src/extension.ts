@@ -18,51 +18,64 @@ export async function activate(context: vscode.ExtensionContext) {
 	await new Promise(resolve => setTimeout(resolve, 1000));
 	console.log("wait done.");
 
-	// このへんでcode lenseの初期化をし、後々条件を満たしたところに足していく、ということをする。
-	
-	// 適当に今開いてるgoファイルを対象に動作を行う。
-	// TODO: 変更する。
+	// activate時にcode lenseを出す。
+	await reload();
+
+	// コマンドでのreloadの登録
+	{
+		let disposable = vscode.commands.registerCommand('zanthoxylum.reload', async () => {
+			// 右下に表示
+			vscode.window.showInformationMessage('zanthoxylum: Reference Reloaded.');
+			await reload();
+		});
+
+		// コマンド登録
+		context.subscriptions.push(disposable);
+	}
+}
+
+// 適当に今開いてるgoファイルを対象に動作を行う。
+export async function reload() {
 	const doc = vscode.window.activeTextEditor?.document;
 	if (doc) {
-		const uri = doc.uri;
+		const currentFileUri = doc.uri;
 		// goファイルが保存されたら + goファイルを新たに開いたら実行して、ASTからのレスポンスを得、code lenseを付け直す。
 		// TODO: 適切なイベントハンドラのセット
 		// TODO: 開発用の決め打ちの破棄
 
-		const currentFileUri = uri;
 		const funcStartPositions = readAST(doc);
 
-		updateReferenceCodeLenseIfNeed(currentFileUri, funcStartPositions);
-		
-		// 以下はメモ
-		// // The commandId parameter must match the command field in package.json
-		// let disposable = vscode.commands.registerCommand('zanthoxylum.helloWorld', () => {
-		// 	// なんか右下に表示
-		// 	vscode.window.showInformationMessage('右下に表示');
-			
-		// 	console.log('実行済み');
-		// });
-
-		// context.subscriptions.push(disposable);
+		// 件数が0件以上であればcode lenseを更新する。
+		if (0 < funcStartPositions.length) {
+			await updateReferenceCodeLenseIfNeed(currentFileUri, funcStartPositions);
+		}
 	}
 }
 
-export function readAST(doc : vscode.TextDocument) : Position[] {
-	// TODO: この関数は全くASTなんて読んでない。適当にfunc で始まる行を取り出してる。実際これで割と上手くいきそう。
+function readAST(doc : vscode.TextDocument) : Position[] {
+	// TODO: この関数は全くASTなんて読んでない。適当にfunc で始まる行を取り出してる。実際これで割と上手くいきそうだけど、フィールドとかを読む時はその開始位置をコレクションする必要がどうしてもある。
 
-	
 	const funcStartPositions : Position[] = [];
 
 	// 適当な字句解析
 	const documentText = doc.getText();
 	const lines = documentText.split("\n");
 	
+	const funcDesc = "func ";
+	const funcDescLength = funcDesc.length;
 
-	// ここでfuncStartPositionsにセットするデータは、エディタ上より1行ずれる、14ってやると15行目になる。
+	// ここでfuncStartPositionsにセットするデータは、エディタ上より1行ずれる。14ってやると15行目になる。
 	lines.forEach((line, index) => {
-		if (line.startsWith("func ")) {// func始まり
+		if (line.startsWith(funcDesc)) {// func始まり
 			
-			const endIndex = line.indexOf("(");
+			let endIndex = line.indexOf("(");// 返り値の(か関数名後の(
+			if (endIndex === funcDescLength) {
+				// func (s *Something) functionName() とか
+				// selector部分の分解がめんどくさいんで対応してない。 contribution welcome~~.
+				console.log("line:", line, "is not adopted.");
+				return;
+			}
+
 			if (-1 < endIndex) {// 括弧始まりが同じ行に含まれている
 				// console.log("func line:", index, line.substring("func ".length, endIndex));
 				funcStartPositions.push(new Position(index, 5));
@@ -73,39 +86,37 @@ export function readAST(doc : vscode.TextDocument) : Position[] {
 	return funcStartPositions;
 }
 
-// 件数が0件以上であればcode lenseを更新する。
-export function updateReferenceCodeLenseIfNeed(currentFileUri:Uri, funcStartPositions: Position[]) {
-	
-	if (0 < funcStartPositions.length) {
-		const refLenseDataArray = new Array<[Uri, Position, Number]>();
+// code lenseを更新する。
+async function updateReferenceCodeLenseIfNeed(currentFileUri:Uri, funcStartPositions: Position[]) {
+	const refLenseDataArray = new Array<[Uri, Position, Number]>();
 
-		// 発見したfunctionの数だけ、reference取得を実行し、code lenseを更新する。code lenseはこのイベントの終了を待てばいいのか。
-		funcStartPositions.forEach(async startPos => {
-				// reference countを出す場所を割り出し、code lenseの位置に表示を出す。
-				// TODO: ここにサラッと書いてあるcurrentFileUriは、今は最初に開いたファイルのものなので、on何ちゃらのハンドラで開いたファイルのものにすげ替えないといけない。
-				// TODO: このawaitがめちゃくちゃ遅いので、必要なものだけを呼び出すと良いが、ASTのキャッシュとの比較なんてことをしないといけないので後回し。
-				const locations = await commands.executeCommand('vscode.executeReferenceProvider', currentFileUri, startPos);
-				const l = locations as Array<Location>;
-				if (0 < l.length) {
-					var refCount = 0;
+	// 発見したfunctionの数だけ、reference取得を実行し、code lenseを更新する。
+	await Promise.all(
+		funcStartPositions.map(async startPos => {
+			// reference countを出す場所を割り出し、code lenseの位置に表示を出す。
+			// TODO: ここにサラッと書いてあるcurrentFileUriは、今は最初に開いたファイルのものなので、on何ちゃらのハンドラで開いたファイルのものにすげ替えないといけない。
+			const locations : Array<Location> = await commands.executeCommand('vscode.executeReferenceProvider', currentFileUri, startPos);
 
-					// 参照数を集計
-					l.forEach(element => {
-						// ASTから出したシンボルの位置と食い違うもののみを集計する。
-						if (element.range.start.line === startPos.line && element.range.start.character === startPos.character) {
-							return;
-						}
-						
-						refCount++;
-					});
+			// 対象の部位に際してreferenceが1件以上あれば。
+			if (0 < locations.length) {
+				var refCount = 0;
 
-					// 参照数を保持する。
-					refLenseDataArray.push([currentFileUri, startPos, refCount]);
-				}
+				// 参照数を集計
+				locations.forEach(element => {
+					// ASTから出したシンボルの位置と食い違うもののみを集計する。
+					if (element.range.start.line === startPos.line && element.range.start.character === startPos.character) {
+						return;
+					}
+					
+					refCount++;
+				});
+
+				// 参照数を保持する。
+				refLenseDataArray.push([currentFileUri, startPos, refCount]);
 			}
-		);
-
-		// レンズのリロードを行う。変更点があったところだけ、、とかが無理なので、全体をリロードする。複数のファイルを開いてる場合も何とかなるのか？
-		refProvider.update(refLenseDataArray);
-	}
+		}
+	));
+	
+	// レンズのリロードを行う。変更点があったところだけ、、とかが無理なので、全体をリロードする。複数のファイルを開いてる場合も何とかなるのか？
+	refProvider.update(refLenseDataArray);
 }
