@@ -22,9 +22,6 @@ nothing. all features are always on.
 1. can not open references yet. see issue at https://github.com/sassembla/zanthoxylum/issues/4
 
 ## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
+### 0.5.0
 
 Initial release.
