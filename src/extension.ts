@@ -32,17 +32,29 @@ export async function activate(context: vscode.ExtensionContext) {
 		// コマンド登録
 		context.subscriptions.push(disposable);
 	}
+
+	// ファイル開いた時のイベント登録
+	{
+		context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(async (e) => {
+			if (e) {
+				await reload();
+			}
+		}));
+	}
+
+	{
+		context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(async (e) => {
+			await reload();
+		}));
+	}
 }
 
-// 適当に今開いてるgoファイルを対象に動作を行う。
+// 今開いてるgoファイルを対象に、code lensを更新する。
 export async function reload() {
 	const doc = vscode.window.activeTextEditor?.document;
 	if (doc) {
 		const currentFileUri = doc.uri;
-		// goファイルが保存されたら + goファイルを新たに開いたら実行して、ASTからのレスポンスを得、code lenseを付け直す。
-		// TODO: 適切なイベントハンドラのセット
-		// TODO: 開発用の決め打ちの破棄
-
+		
 		const funcStartPositions = readAST(doc);
 
 		// 件数が0件以上であればcode lenseを更新する。
