@@ -6,7 +6,7 @@
 
 show reference counter above function.
 
-![feature X](images/show_ref.png)
+![show reference on func](https://raw.githubusercontent.com/sassembla/zanthoxylum/main/images/show_ref.png)
 
 
 ## Requirements

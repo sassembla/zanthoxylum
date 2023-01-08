@@ -1,8 +1,8 @@
 {
   "name": "zanthoxylum",
   "displayName": "zanthoxylum",
-  "description": "show reference counter on code",
-  "version": "0.0.1",
+  "description": "show reference counter on func.",
+  "version": "0.5.1",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -47,5 +47,10 @@
     "webpack": "^5.75.0",
     "webpack-cli": "^5.0.0",
     "@vscode/test-electron": "^2.2.0"
+  },
+  
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sassembla/zanthoxylum"
   }
 }
