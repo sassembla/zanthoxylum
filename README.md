@@ -22,6 +22,15 @@ nothing. all features are always on.
 1. can not open references yet. see issue at https://github.com/sassembla/zanthoxylum/issues/4
 
 ## Release Notes
+
+### 0.5.2
+
+adopt method detection.
+
+### 0.5.1
+
+Initial release of vsix file.
+
 ### 0.5.0
 
 Initial release.

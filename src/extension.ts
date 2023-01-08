@@ -54,48 +54,36 @@ export async function reload() {
 	const doc = vscode.window.activeTextEditor?.document;
 	if (doc) {
 		const currentFileUri = doc.uri;
-		
-		const funcStartPositions = readAST(doc);
+		const symbols : vscode.DocumentSymbol[] = await vscode.commands.executeCommand(
+			'vscode.executeDocumentSymbolProvider',
+			doc.uri
+		);
 
-		// 件数が0件以上であればcode lenseを更新する。
-		if (0 < funcStartPositions.length) {
-			await updateReferenceCodeLenseIfNeed(currentFileUri, funcStartPositions);
-		}
-	}
-}
-
-function readAST(doc : vscode.TextDocument) : Position[] {
-	// TODO: この関数は全くASTなんて読んでない。適当にfunc で始まる行を取り出してる。実際これで割と上手くいきそうだけど、フィールドとかを読む時はその開始位置をコレクションする必要がどうしてもある。
-
-	const funcStartPositions : Position[] = [];
-
-	// 適当な字句解析
-	const documentText = doc.getText();
-	const lines = documentText.split("\n");
-	
-	const funcDesc = "func ";
-	const funcDescLength = funcDesc.length;
-
-	// ここでfuncStartPositionsにセットするデータは、エディタ上より1行ずれる。14ってやると15行目になる。
-	lines.forEach((line, index) => {
-		if (line.startsWith(funcDesc)) {// func始まり
-			
-			let endIndex = line.indexOf("(");// 返り値の(か関数名後の(
-			if (endIndex === funcDescLength) {
-				// func (s *Something) functionName() とか
-				// selector部分の分解がめんどくさいんで対応してない。 contribution welcome~~.
-				console.log("line:", line, "is not adopted.");
+		if (symbols) {
+			if (symbols.length === 0) {
 				return;
 			}
 
-			if (-1 < endIndex) {// 括弧始まりが同じ行に含まれている
-				// console.log("func line:", index, line.substring("func ".length, endIndex));
-				funcStartPositions.push(new Position(index, 5));
+			const funcStartPositions : Position[] = [];
+
+			symbols.forEach(symbol => {
+				switch (symbol.kind) {
+					case vscode.SymbolKind.Function:
+					case vscode.SymbolKind.Method:
+						funcStartPositions.push(symbol.selectionRange.start);
+						break;
+					default:
+						// console.log("unsupported kind:", symbol);
+						break;
+				}
+			});
+			
+			// 件数が0件以上であればcode lenseを更新する。
+			if (0 < funcStartPositions.length) {
+				await updateReferenceCodeLenseIfNeed(currentFileUri, funcStartPositions);
 			}
 		}
-	});
-
-	return funcStartPositions;
+	}
 }
 
 // code lenseを更新する。
